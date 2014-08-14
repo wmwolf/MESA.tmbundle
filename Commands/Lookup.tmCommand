@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>beforeRunningCommand</key>
+	<string>nop</string>
+	<key>command</key>
+	<string>#!/usr/bin/ruby
+
+test_string = STDIN.read
+
+#raise "Need to define $MESA_DIR. In bash, try 'export MESA_DIR=~/mesa' where ~ is your home directory." unless ENV['MESA_DIR'] 
+if ENV['MESA_DIR']
+  mesa_dir = ENV['MESA_DIR']
+else
+  mesa_dir = ENV['HOME']+'/mesa/'
+end
+
+star_job_defaults_file = "#{mesa_dir}star/defaults/star_job.defaults"
+controls_defaults_file = "#{mesa_dir}star/defaults/controls.defaults"
+star_controls_file = "#{mesa_dir}star/public/star_controls.inc"
+star_data_file = "#{mesa_dir}star/public/star_data.inc"
+
+if test_string =~ /.*s\s*\%.*/
+  test_string.sub!(/.*\%/,'')
+  search_pattern = /::.*#{Regexp.quote(test_string.strip)}/
+  
+  star_controls = IO.read(star_controls_file)
+  results = star_controls.lines.with_index.inject([]) { |m,i| m &lt;&lt; i if i[0] =~ search_pattern; m }
+  system("mate -l #{results[0][1] + 1} #{star_controls_file}") unless results.empty?
+  star_controls = nil
+  
+  star_data = IO.read(star_data_file)
+  results = star_data.lines.with_index.inject([]) { |m,i| m &lt;&lt; i if i[0] =~ search_pattern; m }
+  system("mate -l #{results[0][1] + 1} #{star_data_file}") unless results.empty?
+  star_data = nil
+else
+  if test_string.include?('=')
+    test_string.sub!('=','')
+    test_string.strip!
+    search_pattern = /\s*#{Regexp.quote(test_string.strip)}\s*=/
+  else
+    search_pattern = /\s*#{Regexp.quote(test_string.strip)}.*\s=\s/
+  end
+  
+  star_job_defaults = IO.read(star_job_defaults_file)
+  results = star_job_defaults.lines.with_index.inject([]) { |m,i| m &lt;&lt; i if (i[0] =~ search_pattern); m }
+  system("mate -l #{results[0][1] + 1} #{star_job_defaults_file}") unless results.empty?
+  star_job_defaults = nil
+
+  controls_defaults = IO.read(controls_defaults_file)
+  results = controls_defaults.lines.with_index.inject([]) { |m,i| m &lt;&lt; i if (i[0] =~ search_pattern); m }
+  system("mate -l #{results[0][1] + 1} #{controls_defaults_file}") unless results.empty?
+  controls_defaults = nil
+end</string>
+	<key>fallbackInput</key>
+	<string>line</string>
+	<key>input</key>
+	<string>selection</string>
+	<key>keyEquivalent</key>
+	<string>@L</string>
+	<key>name</key>
+	<string>Lookup</string>
+	<key>output</key>
+	<string>discard</string>
+	<key>uuid</key>
+	<string>3EC0B2BF-0606-4D40-8F8D-D9FD7BC3901F</string>
+</dict>
+</plist>

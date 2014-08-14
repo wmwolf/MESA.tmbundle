@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>name</key>
+	<string>MESA</string>
+	<key>ordering</key>
+	<array>
+		<string>3EC0B2BF-0606-4D40-8F8D-D9FD7BC3901F</string>
+		<string>804F43C1-6AFA-4547-8B49-DE983168AF7F</string>
+		<string>2C4CAA43-6F76-4040-9B5B-0335C5BCB5AE</string>
+		<string>18568FF3-E247-4993-A09A-9F7EB1B9CBF8</string>
+	</array>
+	<key>uuid</key>
+	<string>10C8F20E-311E-4EB0-BEF1-BAF3C003DAC3</string>
+</dict>
+</plist>

@@ -1,0 +1,112 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>beforeRunningCommand</key>
+	<string>nop</string>
+	<key>command</key>
+	<string>#!/usr/bin/ruby
+
+test_string = STDIN.read
+original_string = test_string.dup
+
+#raise "Need to define $MESA_DIR. In bash, try 'export MESA_DIR=~/mesa' where ~ is your home directory." unless ENV['MESA_DIR'] 
+
+if ENV['MESA_DIR']
+  mesa_dir = ENV['MESA_DIR']
+else
+  mesa_dir = ENV['HOME']+'/mesa/'
+end
+
+def longest_common_substring(strings, must_contain)
+  shortest = strings.min_by { |s| s.length }
+  maxlen = shortest.length
+  maxlen.downto(must_contain.length) do |len|
+    0.upto(maxlen - len) do |start|
+      substr = shortest[start,len]
+      return substr if strings.all? {|str| str.include? substr and substr.index(must_contain) == 0 }
+    end
+  end
+end
+
+number_of_spaces = 0
+test_string.each_char { |c| number_of_spaces += 1 if c == " "; break unless c == " "}
+
+star_job_defaults_file = "#{mesa_dir}star/defaults/star_job.defaults"
+controls_defaults_file = "#{mesa_dir}star/defaults/controls.defaults"
+star_controls_file = "#{mesa_dir}star/public/star_controls.inc"
+star_data_file = "#{mesa_dir}star/public/star_data.inc"
+preamble = ''
+epilogue = ''
+
+if test_string =~ /.*s\s*\%.*/
+  preamble = test_string.slice(/.*\%\s*/)
+  test_string.sub!(/.*\%/,'')
+  test_string.strip!
+  search_pattern = /::.*#{Regexp.quote(test_string)}/
+  
+  star_controls = IO.read(star_controls_file)
+  results1 = star_controls.lines.inject([]) do |m,i|
+    start_index = i.index('::')
+    if start_index
+      candidates = i[start_index..-1].scan(/\w+/)
+      candidates.each { |c| m &lt;&lt; c if c.index(test_string) == 0 }
+    end
+    m
+  end
+  star_controls = nil
+  
+  star_data = IO.read(star_data_file)
+  results2 = star_data.lines.inject([]) do |m,i|
+    start_index = i.index('::')
+    if start_index
+      candidates = i[start_index..-1].scan(/\w+/)
+      candidates.each { |c| m &lt;&lt; c if c.index(test_string) == 0 }
+    end
+    m
+  end
+  star_data = nil
+else
+  test_string.strip!
+  search_pattern = /\s*#{Regexp.quote(test_string)}.*\s=\s/
+  star_job_defaults = IO.read(star_job_defaults_file)
+  results1 = star_job_defaults.lines.inject([]) { |m,i| m &lt;&lt; i if i =~ search_pattern; m }
+  star_job_defaults = nil
+  
+  controls_defaults = IO.read(controls_defaults_file)
+  results2 = controls_defaults.lines.inject([]) { |m,i| m &lt;&lt; i if i =~ search_pattern; m }
+  controls_defaults = nil
+end
+
+  results = [results1, results2].flatten
+  epilogue = ' = ' if results.size == 1
+if results.empty?
+  print original_string
+else
+  whitespace = ' ' * number_of_spaces
+  best_result = longest_common_substring(results, test_string).strip
+  if best_result["="]
+    print whitespace + best_result[0..best_result.index("=")] + ' '
+  elsif best_result["::"]
+    starting_index = best_result.index(test_string)
+    ending_index = best_result.index(',',starting_index) || best_result.index('!', starting_index) || 0
+    ending_index -= 1
+    print preamble + best_result[starting_index..ending_index].rstrip + epilogue
+  else
+    print whitespace + preamble + best_result + epilogue
+  end
+end</string>
+	<key>fallbackInput</key>
+	<string>line</string>
+	<key>input</key>
+	<string>selection</string>
+	<key>keyEquivalent</key>
+	<string>@M</string>
+	<key>name</key>
+	<string>Auto-Complete</string>
+	<key>output</key>
+	<string>insertAsSnippet</string>
+	<key>uuid</key>
+	<string>2C4CAA43-6F76-4040-9B5B-0335C5BCB5AE</string>
+</dict>
+</plist>

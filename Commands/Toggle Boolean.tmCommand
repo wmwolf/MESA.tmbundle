@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>beforeRunningCommand</key>
+	<string>nop</string>
+	<key>command</key>
+	<string>#!/usr/bin/ruby
+
+test_string = STDIN.read
+
+test_string.gsub!(/true/, 'tobef')
+test_string.gsub!(/false/, 'tobet')
+test_string.gsub!(/tobef/, 'false')
+test_string.gsub!(/tobet/, 'true')
+
+print test_string
+</string>
+	<key>fallbackInput</key>
+	<string>line</string>
+	<key>input</key>
+	<string>selection</string>
+	<key>keyEquivalent</key>
+	<string>@B</string>
+	<key>name</key>
+	<string>Toggle Boolean</string>
+	<key>output</key>
+	<string>replaceSelectedText</string>
+	<key>uuid</key>
+	<string>804F43C1-6AFA-4547-8B49-DE983168AF7F</string>
+</dict>
+</plist>

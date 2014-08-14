@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>beforeRunningCommand</key>
+	<string>nop</string>
+	<key>command</key>
+	<string>#!/usr/bin/ruby
+
+test_string = STDIN.read
+
+#raise "Need to define $MESA_DIR. In bash, try 'export MESA_DIR=~/mesa' where ~ is your home directory." unless ENV['MESA_DIR'] 
+if ENV['MESA_DIR']
+  mesa_dir = ENV['MESA_DIR']
+else
+  mesa_dir = ENV['HOME']+'/mesa/'
+  puts "Warning: using #{mesa_dir} as mesa_dir."
+end
+
+def longest_common_substring(strings, must_contain)
+  shortest = strings.min_by { |s| s.length }
+  maxlen = shortest.length
+  maxlen.downto(1) do |len|
+    0.upto(maxlen - len) do |start|
+      substr = shortest[start,len]
+      return substr if strings.all? {|str| str.include? substr } and substr.include?(must_contain)
+    end
+  end
+end
+
+number_of_spaces = 0
+test_string.each_char { |c| number_of_spaces += 1 if c == " "; break unless c == " "}
+
+star_job_defaults_file = "#{mesa_dir}star/defaults/star_job.defaults"
+controls_defaults_file = "#{mesa_dir}star/defaults/controls.defaults"
+star_controls_file = "#{mesa_dir}star/public/star_controls.inc"
+star_data_file = "#{mesa_dir}star/public/star_data.inc"
+
+if test_string =~ /.*s\s*\%.*/
+  is_pointer = true
+  preamble = test_string.slice(/.*\%\s*/)
+  test_string.sub!(/.*\%/,'')
+  test_string.strip!
+  search_pattern = /::.*#{Regexp.quote(test_string)}/
+  
+  star_controls = IO.read(star_controls_file)
+  results1 = star_controls.lines.inject([]) { |m,i| m &lt;&lt; i if i =~ search_pattern; m }
+  star_controls = nil
+  
+  star_data = IO.read(star_data_file)
+  results2 = star_data.lines.inject([]) { |m,i| m &lt;&lt; i if i =~ search_pattern; m }
+  star_data = nil
+else
+  is_pointer = false
+  test_string.strip!
+  search_pattern = /\s*#{Regexp.quote(test_string)}.*\s=\s/
+  star_job_defaults = IO.read(star_job_defaults_file)
+  results1 = star_job_defaults.lines.inject([]) { |m,i| m &lt;&lt; i if i =~ search_pattern; m }
+  star_job_defaults = nil
+  
+  controls_defaults = IO.read(controls_defaults_file)
+  results2 = controls_defaults.lines.inject([]) { |m,i| m &lt;&lt; i if i =~ search_pattern; m }
+  controls_defaults = nil
+end
+
+results = [results1, results2].flatten
+puts 'No matches.' if results.empty?
+display_results = []
+results.each do |r|
+  sub_results = r.scan(/\w+/)
+  format_preamble = ''
+  format_preamble = 's% ' if is_pointer
+  sub_results.each { |s| display_results &lt;&lt; "#{format_preamble} #{s}" if s.include?(test_string) }
+end
+puts display_results
+</string>
+	<key>fallbackInput</key>
+	<string>line</string>
+	<key>input</key>
+	<string>selection</string>
+	<key>keyEquivalent</key>
+	<string>@O</string>
+	<key>name</key>
+	<string>Display Options</string>
+	<key>output</key>
+	<string>showAsTooltip</string>
+	<key>uuid</key>
+	<string>18568FF3-E247-4993-A09A-9F7EB1B9CBF8</string>
+</dict>
+</plist>
