@@ -2,19 +2,20 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<key>beforeRunningCommand</key>
-	<string>nop</string>
-	<key>command</key>
-	<string>#!/usr/bin/ruby
+	<key>changed</key>
+	<dict>
+		<key>command</key>
+		<string>#!/usr/bin/ruby
 
 test_string = STDIN.read
 
 #raise "Need to define $MESA_DIR. In bash, try 'export MESA_DIR=~/mesa' where ~ is your home directory." unless ENV['MESA_DIR'] 
-if ENV['MESA_DIR']
+if ENV['TM_MESA_DIR']
+  mesa_dir = ENV['TM_MESA_DIR']
+elsif ENV['MESA_DIR']
   mesa_dir = ENV['MESA_DIR']
 else
   mesa_dir = ENV['HOME']+'/mesa/'
-  puts "Warning: using #{mesa_dir} as mesa_dir."
 end
 
 def longest_common_substring(strings, must_contain)
@@ -31,10 +32,12 @@ end
 number_of_spaces = 0
 test_string.each_char { |c| number_of_spaces += 1 if c == " "; break unless c == " "}
 
-star_job_defaults_file = "#{mesa_dir}star/defaults/star_job.defaults"
-controls_defaults_file = "#{mesa_dir}star/defaults/controls.defaults"
-star_controls_file = "#{mesa_dir}star/public/star_controls.inc"
-star_data_file = "#{mesa_dir}star/public/star_data.inc"
+star_defaults_dir = File.join(mesa_dir, 'star', 'defaults')
+star_public_dir = File.join(mesa_dir, 'star', 'public')
+star_job_defaults_file = File.join(star_defaults_dir, 'star_job.defaults')
+controls_defaults_file = File.join(star_defaults_dir, 'controls.defaults')
+star_data_file = File.join(star_public_dir, 'star_data.inc')
+star_def_file = File.join(star_public_dir, 'star_def.inc')
 
 if test_string =~ /.*s\s*\%.*/
   is_pointer = true
@@ -43,9 +46,9 @@ if test_string =~ /.*s\s*\%.*/
   test_string.strip!
   search_pattern = /::.*#{Regexp.quote(test_string)}/
   
-  star_controls = IO.read(star_controls_file)
-  results1 = star_controls.lines.inject([]) { |m,i| m &lt;&lt; i if i =~ search_pattern; m }
-  star_controls = nil
+  star_def = IO.read(star_def_file)
+  results1 = star_def.lines.inject([]) { |m,i| m &lt;&lt; i if i =~ search_pattern; m }
+  star_def = nil
   
   star_data = IO.read(star_data_file)
   results2 = star_data.lines.inject([]) { |m,i| m &lt;&lt; i if i =~ search_pattern; m }
@@ -74,16 +77,25 @@ results.each do |r|
 end
 puts display_results
 </string>
-	<key>fallbackInput</key>
-	<string>line</string>
-	<key>input</key>
-	<string>selection</string>
-	<key>keyEquivalent</key>
-	<string>@O</string>
-	<key>name</key>
-	<string>Display Options</string>
-	<key>output</key>
-	<string>showAsTooltip</string>
+		<key>inputFormat</key>
+		<string>text</string>
+		<key>keyEquivalent</key>
+		<string>^@O</string>
+		<key>outputCaret</key>
+		<string>afterOutput</string>
+		<key>outputFormat</key>
+		<string>text</string>
+		<key>outputLocation</key>
+		<string>toolTip</string>
+		<key>version</key>
+		<integer>2</integer>
+	</dict>
+	<key>deleted</key>
+	<array>
+		<string>output</string>
+	</array>
+	<key>isDelta</key>
+	<true/>
 	<key>uuid</key>
 	<string>18568FF3-E247-4993-A09A-9F7EB1B9CBF8</string>
 </dict>
