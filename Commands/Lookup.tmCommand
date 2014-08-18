@@ -40,7 +40,7 @@ if test_string =~ /.*s\s*\%.*/
   star_data = nil
 else
   if test_string.include?('=')
-    test_string.sub!('=','')
+    test_string.sub!(/=.*/,'')
     test_string.strip!
     search_pattern = /\s*#{Regexp.quote(test_string.strip)}\s*=/
   else

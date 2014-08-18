@@ -10,17 +10,60 @@
 test_string = STDIN.read
 original_string = test_string.dup
 
-#raise "Need to define $MESA_DIR. In bash, try 'export MESA_DIR=~/mesa' where ~ is your home directory." unless ENV['MESA_DIR'] 
-
-if ENV['TM_MESA_DIR']
-  mesa_dir = ENV['TM_MESA_DIR']
-elsif ENV['MESA_DIR']
-  mesa_dir = ENV['MESA_DIR']
-else
-  mesa_dir = ENV['HOME']+'/mesa/'
+def get_pointer_variables(mesa_dir)
+  star_public_dir = File.join(mesa_dir, 'star', 'public')
+  star_data_file = File.join(star_public_dir, 'star_data.inc')
+  star_def_file = File.join(star_public_dir, 'star_def.inc')
+  all_lines = IO.readlines(star_data_file) + IO.readlines(star_def_file)
+  # remove comments and reduce parentheses
+  all_lines.map! { |line| line.sub(/!.*/, '') }
+  all_lines.map! { |line| line.sub(/\(.+?\)/, '()').sub(/\(:(,:)*\)/, '') }
+  all_lines.map! { |line| line.sub(/=.*,+/, ',').sub(/=.*/, '').strip }
+  # remove blank lines
+  all_lines.reject! { |line| /\A\s+$/ =~ line or '' == line }
+  ampersand_lines = []
+  names = []
+  all_lines.each_with_index do |line, i|
+    if line.include?('::') or ampersand_lines.include?(i - 1)
+      if /&amp;\s*$/ =~ line
+        ampersand_lines &lt;&lt; i
+      else
+        start = line.index('::') || 0
+        start += 2 if line.index('::')
+        names += line[start..-1].split(',').map { |word| word.strip }
+      end
+    end
+  end
+  ampersand_lines.each do |i|
+    line = all_lines[i]
+    start = line.index('::') || 0
+    start += 2 if line.index('::')
+    names += line[start..-1].split(',').map { |word| word.strip }
+  end
+  names.reject! { |name| name == '&amp;'}
+  return names.sort.uniq
+end  
+  
+def get_inlist_commands(mesa_dir)
+  star_defaults_dir = File.join(mesa_dir, 'star', 'defaults')
+  star_job_defaults_file = File.join(star_defaults_dir, 'star_job.defaults')
+  controls_defaults_file = File.join(star_defaults_dir, 'controls.defaults')
+  pgstar_defaults_file = File.join(star_defaults_dir, 'pgstar.defaults')
+  
+  all_lines = IO.readlines(star_job_defaults_file)
+  all_lines += IO.readlines(controls_defaults_file)
+  all_lines += IO.readlines(controls_defaults_file)
+  
+  # remove comments and reduce parentheses
+  all_lines.map! { |line| line.sub(/!.*/, '').sub(/\(.+?\)/, '()').strip }
+  # remove blank lines
+  all_lines.reject! { |line| /\A\s+$/ =~ line or '' == line }
+  return (all_lines.map { |line| line.sub(/=.*/, '').strip }).sort.uniq
 end
+  
 
 def longest_common_substring(strings, must_contain)
+  return must_contain if strings.empty?
   shortest = strings.min_by { |s| s.length }
   maxlen = shortest.length
   maxlen.downto(must_contain.length) do |len|
@@ -31,74 +74,47 @@ def longest_common_substring(strings, must_contain)
   end
 end
 
-number_of_spaces = 0
-test_string.each_char { |c| number_of_spaces += 1 if c == " "; break unless c == " "}
+def auto_complete(test_string, mesa_dir)
+  preamble = ''
+  epilogue = ''
 
-star_defaults_dir = File.join(mesa_dir, 'star', 'defaults')
-star_public_dir = File.join(mesa_dir, 'star', 'public')
-star_job_defaults_file = File.join(star_defaults_dir, 'star_job.defaults')
-controls_defaults_file = File.join(star_defaults_dir, 'controls.defaults')
-star_data_file = File.join(star_public_dir, 'star_data.inc')
-star_def_file = File.join(star_public_dir, 'star_def.inc')
-preamble = ''
-epilogue = ''
-
-if test_string =~ /.*s\s*\%.*/
-  preamble = test_string.slice(/.*\%\s*/)
-  test_string.sub!(/.*\%/,'')
-  test_string.strip!
-  search_pattern = /::.*#{Regexp.quote(test_string)}/
-  
-  star_def = IO.read(star_def_file)
-  results1 = star_def.lines.inject([]) do |m,i|
-    start_index = i.index('::')
-    if start_index
-      candidates = i[start_index..-1].scan(/\w+/)
-      candidates.each { |c| m &lt;&lt; c if c.index(test_string) == 0 }
-    end
-    m
+  if test_string =~ /.*s\s*\%.*/
+    in_inlist = false
+    preamble = test_string.slice(/.*\%\s*/)
+    test_string.sub!(/.*\%\s*/,'')
+    test_string.strip!
+    search_pattern = /\A#{Regexp.quote(test_string)}/
+    names = get_pointer_variables(mesa_dir)
+  else
+    in_inlist = true
+    preamble = test_string.slice(/\A\s+/) || preamble
+    test_string.strip!
+    search_pattern = /\A#{Regexp.quote(test_string)}/
+    names = get_inlist_commands(mesa_dir)
   end
-  star_def = nil
-  
-  star_data = IO.read(star_data_file)
-  results2 = star_data.lines.inject([]) do |m,i|
-    start_index = i.index('::')
-    if start_index
-      candidates = i[start_index..-1].scan(/\w+/)
-      candidates.each { |c| m &lt;&lt; c if c.index(test_string) == 0 }
-    end
-    m
+  results = names.inject([]) do |options, name|
+    options &lt;&lt; name if name =~ search_pattern
+    options
   end
-  star_data = nil
-else
-  test_string.strip!
-  search_pattern = /\s*#{Regexp.quote(test_string)}.*\s=\s/
-  star_job_defaults = IO.read(star_job_defaults_file)
-  results1 = star_job_defaults.lines.inject([]) { |m,i| m &lt;&lt; i if i =~ search_pattern; m }
-  star_job_defaults = nil
-  
-  controls_defaults = IO.read(controls_defaults_file)
-  results2 = controls_defaults.lines.inject([]) { |m,i| m &lt;&lt; i if i =~ search_pattern; m }
-  controls_defaults = nil
+  res = longest_common_substring(results, test_string)
+  if results.size == 1 
+    epilogue += in_inlist ? ' = ' : ' '
+  end
+  return preamble + res + epilogue
 end
 
-  results = [results1, results2].flatten
-  epilogue = ' = ' if results.size == 1
-if results.empty?
-  print original_string
-else
-  whitespace = ' ' * number_of_spaces
-  best_result = longest_common_substring(results, test_string).strip
-  if best_result["="]
-    print whitespace + best_result[0..best_result.index("=")] + ' '
-  elsif best_result["::"]
-    starting_index = best_result.index(test_string)
-    ending_index = best_result.index(',',starting_index) || best_result.index('!', starting_index) || 0
-    ending_index -= 1
-    print preamble + best_result[starting_index..ending_index].rstrip + epilogue
+begin
+  if ENV['TM_MESA_DIR']
+    mesa_dir = ENV['TM_MESA_DIR']
+  elsif ENV['MESA_DIR']
+    mesa_dir = ENV['MESA_DIR']
   else
-    print whitespace + preamble + best_result + epilogue
+    mesa_dir = ENV['HOME']+'/mesa/'
   end
+  new_string = auto_complete(test_string, mesa_dir)
+  print new_string
+rescue
+  print original_string
 end</string>
 		<key>inputFormat</key>
 		<string>text</string>

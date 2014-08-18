@@ -9,73 +9,186 @@
 
 test_string = STDIN.read
 
-#raise "Need to define $MESA_DIR. In bash, try 'export MESA_DIR=~/mesa' where ~ is your home directory." unless ENV['MESA_DIR'] 
-if ENV['TM_MESA_DIR']
-  mesa_dir = ENV['TM_MESA_DIR']
-elsif ENV['MESA_DIR']
-  mesa_dir = ENV['MESA_DIR']
-else
-  mesa_dir = ENV['HOME']+'/mesa/'
+def get_pointer_variables(mesa_dir)
+  star_public_dir = File.join(mesa_dir, 'star', 'public')
+  star_data_file = File.join(star_public_dir, 'star_data.inc')
+  star_def_file = File.join(star_public_dir, 'star_def.inc')
+  all_lines = IO.readlines(star_data_file) + IO.readlines(star_def_file)
+  # remove comments and reduce parentheses
+  all_lines.map! { |line| line.sub(/!.*/, '') }
+  all_lines.map! { |line| line.sub(/\(.+?\)/, '()').sub(/\(:(,:)*\)/, '') }
+  all_lines.map! { |line| line.sub(/=.*,/, ',').sub(/=.*/, '').strip }
+  # remove blank lines
+  all_lines.reject! { |line| /\A\s+$/ =~ line or '' == line }
+  ampersand_lines = []
+  names = []
+  all_lines.each_with_index do |line, i|
+    if line.include?('::') or ampersand_lines.include?(i - 1)
+      if /&amp;\s*$/ =~ line
+        ampersand_lines &lt;&lt; i
+      else
+        start = line.index('::') || 0
+        start += 2 if line.index('::')
+        names += line[start..-1].split(',').map { |word| word.strip }
+      end
+    end
+  end
+  ampersand_lines.each do |i|
+    line = all_lines[i]
+    start = line.index('::') || 0
+    start += 2 if line.index('::')
+    names += line[start..-1].split(',').map { |word| word.strip }
+  end
+  names.reject! { |name| name == '&amp;'}
+  return names.sort.uniq
+end  
+  
+def get_inlist_commands(mesa_dir)
+  star_defaults_dir = File.join(mesa_dir, 'star', 'defaults')
+  star_job_defaults_file = File.join(star_defaults_dir, 'star_job.defaults')
+  controls_defaults_file = File.join(star_defaults_dir, 'controls.defaults')
+  pgstar_defaults_file = File.join(star_defaults_dir, 'pgstar.defaults')
+  
+  all_lines = IO.readlines(star_job_defaults_file)
+  all_lines += IO.readlines(controls_defaults_file)
+  all_lines += IO.readlines(controls_defaults_file)
+  
+  # remove comments and reduce parentheses
+  all_lines.map! { |line| line.sub(/!.*/, '').sub(/\(.+?\)/, '()').strip }
+  # remove blank lines
+  all_lines.reject! { |line| /\A\s+$/ =~ line or '' == line }
+  return (all_lines.map { |line| line.sub(/=.*/, '').strip }).sort.uniq
 end
+  
 
 def longest_common_substring(strings, must_contain)
+  return must_contain if strings.empty?
   shortest = strings.min_by { |s| s.length }
   maxlen = shortest.length
-  maxlen.downto(1) do |len|
+  maxlen.downto(must_contain.length) do |len|
     0.upto(maxlen - len) do |start|
       substr = shortest[start,len]
-      return substr if strings.all? {|str| str.include? substr } and substr.include?(must_contain)
+      return substr if strings.all? {|str| str.include? substr and substr.index(must_contain) == 0 }
     end
   end
 end
 
-number_of_spaces = 0
-test_string.each_char { |c| number_of_spaces += 1 if c == " "; break unless c == " "}
+def display_options(test_string, mesa_dir)
 
-star_defaults_dir = File.join(mesa_dir, 'star', 'defaults')
-star_public_dir = File.join(mesa_dir, 'star', 'public')
-star_job_defaults_file = File.join(star_defaults_dir, 'star_job.defaults')
-controls_defaults_file = File.join(star_defaults_dir, 'controls.defaults')
-star_data_file = File.join(star_public_dir, 'star_data.inc')
-star_def_file = File.join(star_public_dir, 'star_def.inc')
+  preamble = ''
 
-if test_string =~ /.*s\s*\%.*/
-  is_pointer = true
-  preamble = test_string.slice(/.*\%\s*/)
-  test_string.sub!(/.*\%/,'')
+  if test_string =~ /.*s\s*\%.*/
+    in_inlist = false
+    preamble += 's% '
+    test_string.sub!(/.*\%\s*/,'')
+    names = get_pointer_variables(mesa_dir)
+  else
+    in_inlist = true
+    preamble = test_string.slice(/\A\s+/) || preamble
+    names = get_inlist_commands(mesa_dir)
+  end
   test_string.strip!
-  search_pattern = /::.*#{Regexp.quote(test_string)}/
-  
-  star_def = IO.read(star_def_file)
-  results1 = star_def.lines.inject([]) { |m,i| m &lt;&lt; i if i =~ search_pattern; m }
-  star_def = nil
-  
-  star_data = IO.read(star_data_file)
-  results2 = star_data.lines.inject([]) { |m,i| m &lt;&lt; i if i =~ search_pattern; m }
-  star_data = nil
-else
-  is_pointer = false
-  test_string.strip!
-  search_pattern = /\s*#{Regexp.quote(test_string)}.*\s=\s/
-  star_job_defaults = IO.read(star_job_defaults_file)
-  results1 = star_job_defaults.lines.inject([]) { |m,i| m &lt;&lt; i if i =~ search_pattern; m }
-  star_job_defaults = nil
-  
-  controls_defaults = IO.read(controls_defaults_file)
-  results2 = controls_defaults.lines.inject([]) { |m,i| m &lt;&lt; i if i =~ search_pattern; m }
-  controls_defaults = nil
+  search_pattern = /\A#{Regexp.quote(test_string)}/
+  loose_search_pattern = /#{Regexp.quote(test_string)}/
+  results = names.inject([]) do |options, name|
+    options &lt;&lt; name if name =~ search_pattern
+    options
+  end
+  loose_results = names.inject([]) do |options, name|
+    options &lt;&lt; name if name =~ loose_search_pattern and not results.include?(name)
+    options
+  end
+  results = results.sort.uniq + loose_results.sort.uniq
+  results.map! { |result| preamble + result }
+  return results
 end
 
-results = [results1, results2].flatten
-puts 'No matches.' if results.empty?
-display_results = []
-results.each do |r|
-  sub_results = r.scan(/\w+/)
-  format_preamble = ''
-  format_preamble = 's% ' if is_pointer
-  sub_results.each { |s| display_results &lt;&lt; "#{format_preamble} #{s}" if s.include?(test_string) }
+begin
+  if ENV['TM_MESA_DIR']
+    mesa_dir = ENV['TM_MESA_DIR']
+  elsif ENV['MESA_DIR']
+    mesa_dir = ENV['MESA_DIR']
+  else
+    mesa_dir = ENV['HOME']+'/mesa/'
+  end
+  puts display_options(test_string, mesa_dir)
+rescue
+  nil
 end
-puts display_results
+  
+ 
+  
+# #!/usr/bin/ruby
+#
+# test_string = STDIN.read
+#
+# #raise "Need to define $MESA_DIR. In bash, try 'export MESA_DIR=~/mesa' where ~ is your home directory." unless ENV['MESA_DIR']
+# if ENV['TM_MESA_DIR']
+#   mesa_dir = ENV['TM_MESA_DIR']
+# elsif ENV['MESA_DIR']
+#   mesa_dir = ENV['MESA_DIR']
+# else
+#   mesa_dir = ENV['HOME']+'/mesa/'
+# end
+#
+# def longest_common_substring(strings, must_contain)
+#   shortest = strings.min_by { |s| s.length }
+#   maxlen = shortest.length
+#   maxlen.downto(1) do |len|
+#     0.upto(maxlen - len) do |start|
+#       substr = shortest[start,len]
+#       return substr if strings.all? {|str| str.include? substr } and substr.include?(must_contain)
+#     end
+#   end
+# end
+#
+# number_of_spaces = 0
+# test_string.each_char { |c| number_of_spaces += 1 if c == " "; break unless c == " "}
+#
+# star_defaults_dir = File.join(mesa_dir, 'star', 'defaults')
+# star_public_dir = File.join(mesa_dir, 'star', 'public')
+# star_job_defaults_file = File.join(star_defaults_dir, 'star_job.defaults')
+# controls_defaults_file = File.join(star_defaults_dir, 'controls.defaults')
+# star_data_file = File.join(star_public_dir, 'star_data.inc')
+# star_def_file = File.join(star_public_dir, 'star_def.inc')
+#
+# if test_string =~ /.*s\s*\%.*/
+#   is_pointer = true
+#   preamble = test_string.slice(/.*\%\s*/)
+#   test_string.sub!(/.*\%/,'')
+#   test_string.strip!
+#   search_pattern = /::.*#{Regexp.quote(test_string)}/
+#
+#   star_def = IO.read(star_def_file)
+#   results1 = star_def.lines.inject([]) { |m,i| m &lt;&lt; i if i =~ search_pattern; m }
+#   star_def = nil
+#
+#   star_data = IO.read(star_data_file)
+#   results2 = star_data.lines.inject([]) { |m,i| m &lt;&lt; i if i =~ search_pattern; m }
+#   star_data = nil
+# else
+#   is_pointer = false
+#   test_string.strip!
+#   search_pattern = /\s*#{Regexp.quote(test_string)}.*\s=\s/
+#   star_job_defaults = IO.read(star_job_defaults_file)
+#   results1 = star_job_defaults.lines.inject([]) { |m,i| m &lt;&lt; i if i =~ search_pattern; m }
+#   star_job_defaults = nil
+#
+#   controls_defaults = IO.read(controls_defaults_file)
+#   results2 = controls_defaults.lines.inject([]) { |m,i| m &lt;&lt; i if i =~ search_pattern; m }
+#   controls_defaults = nil
+# end
+#
+# results = [results1, results2].flatten
+# puts 'No matches.' if results.empty?
+# display_results = []
+# results.each do |r|
+#   sub_results = r.scan(/\w+/)
+#   format_preamble = ''
+#   format_preamble = 's% ' if is_pointer
+#   sub_results.each { |s| display_results &lt;&lt; "#{format_preamble} #{s}" if s.include?(test_string) }
+# end
+# puts display_results
 </string>
 		<key>inputFormat</key>
 		<string>text</string>
